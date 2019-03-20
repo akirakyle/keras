@@ -183,19 +183,21 @@ def fit_generator(model,
                 if not hasattr(generator_output, '__len__'):
                     raise ValueError('Output of generator should be '
                                      'a tuple `(x, y, sample_weight)` '
-                                     'or `(x, y)`. Found: ' +
-                                     str(generator_output))
+                                     'or `(x, y)` or (x,y,sample_weight,IDs). '
+                                     'Found: ' + str(generator_output))
 
                 if len(generator_output) == 2:
                     x, y = generator_output
                     sample_weight = None
                 elif len(generator_output) == 3:
                     x, y, sample_weight = generator_output
+                elif len(generator_output) == 4:
+                    x, y, sample_weight, _ = generator_output
                 else:
                     raise ValueError('Output of generator should be '
                                      'a tuple `(x, y, sample_weight)` '
-                                     'or `(x, y)`. Found: ' +
-                                     str(generator_output))
+                                     'or `(x, y)` or (x,y,sample_weight,IDs). '
+                                     'Found: ' + str(generator_output))
                 # build batch logs
                 batch_logs = {}
                 if x is None or len(x) == 0:
@@ -331,18 +333,20 @@ def evaluate_generator(model, generator,
             if not hasattr(generator_output, '__len__'):
                 raise ValueError('Output of generator should be a tuple '
                                  '(x, y, sample_weight) '
-                                 'or (x, y). Found: ' +
-                                 str(generator_output))
+                                 'or (x, y) or (x,y,sample_weight,IDs). Found: '
+                                 + str(generator_output))
             if len(generator_output) == 2:
                 x, y = generator_output
                 sample_weight = None
             elif len(generator_output) == 3:
                 x, y, sample_weight = generator_output
+            elif len(generator_output) == 4:
+                x, y, sample_weight, _ = generator_output
             else:
                 raise ValueError('Output of generator should be a tuple '
                                  '(x, y, sample_weight) '
-                                 'or (x, y). Found: ' +
-                                 str(generator_output))
+                                 'or (x, y) or (x,y,sample_weight,IDs). Found: '
+                                 + str(generator_output))
             outs = model.test_on_batch(x, y, sample_weight=sample_weight)
             outs = to_list(outs)
             outs_per_batch.append(outs)
@@ -392,6 +396,7 @@ def predict_generator(model, generator,
     steps_done = 0
     wait_time = 0.01
     all_outs = []
+    all_ids = []
     is_sequence = isinstance(generator, Sequence)
     if not is_sequence and use_multiprocessing and workers > 1:
         warnings.warn(
@@ -432,6 +437,7 @@ def predict_generator(model, generator,
             progbar = Progbar(target=steps)
 
         while steps_done < steps:
+            ids = None
             generator_output = next(output_generator)
             if isinstance(generator_output, tuple):
                 # Compatibility with the generators
@@ -440,11 +446,17 @@ def predict_generator(model, generator,
                     x, _ = generator_output
                 elif len(generator_output) == 3:
                     x, _, _ = generator_output
+                elif len(generator_output) == 4:
+                    x, _, _, ids = generator_output
+                    #if len(x) != len(ids):
+                    #    raise ValueError('length of x and IDs must match'
+                    #                     'len(x) = '+str(len(x))+' while '
+                    #                     'len(IDs) = '+str(len(ids)))
                 else:
                     raise ValueError('Output of generator should be '
-                                     'a tuple `(x, y, sample_weight)` '
-                                     'or `(x, y)`. Found: ' +
-                                     str(generator_output))
+                                     'a tuple (x, y, sample_weight) '
+                                     'or (x, y) or (x,y,sample_weight,IDs). '
+                                     'Found: ' + str(generator_output))
             else:
                 # Assumes a generator that only
                 # yields inputs (not targets and sample weights).
@@ -459,6 +471,9 @@ def predict_generator(model, generator,
 
             for i, out in enumerate(outs):
                 all_outs[i].append(out)
+
+            if ids: all_ids.extend(ids)
+
             steps_done += 1
             if verbose == 1:
                 progbar.update(steps_done)
@@ -469,10 +484,14 @@ def predict_generator(model, generator,
 
     if len(all_outs) == 1:
         if steps_done == 1:
+            if all_ids: return all_outs[0][0], all_ids
             return all_outs[0][0]
         else:
+            if all_ids: return np.concatenate(all_outs[0]), all_ids
             return np.concatenate(all_outs[0])
     if steps_done == 1:
+        if all_ids: return [out[0] for out in all_outs], all_ids
         return [out[0] for out in all_outs]
     else:
+        if all_ids: return [np.concatenate(out) for out in all_outs], all_ids
         return [np.concatenate(out) for out in all_outs]

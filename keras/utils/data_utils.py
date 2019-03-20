@@ -304,7 +304,8 @@ class Sequence(object):
 
     Every `Sequence` must implement the `__getitem__` and the `__len__` methods.
     If you want to modify your dataset between epochs you may implement
-    `on_epoch_end`. The method `__getitem__` should return a complete batch.
+    `on_epoch_end`. The method `__getitem__` should return a complete batch of
+    either (x,y), (x,y,sample_weight), or (x,y,sample_weight,IDs).
 
     # Notes
 
@@ -339,6 +340,7 @@ class Sequence(object):
                     resize(imread(file_name), (200, 200))
                        for file_name in batch_x]), np.array(batch_y)
     ```
+
     """
 
     @abstractmethod
@@ -349,7 +351,9 @@ class Sequence(object):
             index: position of the batch in the Sequence.
 
         # Returns
-            A batch
+            A batch of of either (x,y), (x,y,sample_weight), or
+            (x,y,sample_weight,IDs)
+
         """
         raise NotImplementedError
 
